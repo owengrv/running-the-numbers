@@ -492,3 +492,140 @@ td.balance { color: var(--text); }
 
 /* Hidden file input */
 #importFileInput { display: none; }
+
+/* Investment list rows (replaces inline styles in app.js) */
+.inv-list-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 12px;
+  padding: 0 4px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.inv-list-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* ======================== MOBILE ======================== */
+@media (max-width: 640px) {
+
+  /* Header: stack title + actions vertically */
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .header-actions .header-date {
+    width: 100%;
+    order: -1; /* date always appears first in the actions row */
+    margin-bottom: 2px;
+  }
+
+  .header-actions .btn {
+    flex: 1 1 auto;
+    text-align: center;
+    padding: 7px 10px;
+    font-size: 10px;
+  }
+
+  /* Tabs: horizontal scroll instead of wrapping */
+  .tabs {
+    padding: 0 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    padding: 12px 14px;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  /* Content padding */
+  .content {
+    padding: 16px;
+  }
+
+  /* All grids collapse to single column */
+  .grid2,
+  .grid3,
+  .grid4 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Stat values slightly smaller on mobile */
+  .stat-value {
+    font-size: 20px;
+  }
+
+  /* Cashflow statement: allow label/value to wrap on very small screens */
+  .cf-line {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .cf-line-label.indent {
+    padding-left: 10px;
+  }
+
+  /* Tables: smaller text + allow horizontal scroll (already wrapped in .table-wrap) */
+  table {
+    font-size: 11px;
+  }
+
+  th, td {
+    padding: 6px 8px;
+  }
+
+  /* Loan cards */
+  .loan-card {
+    padding: 14px;
+  }
+
+  /* Summary net worth table: hide less critical columns */
+  #nw_projection_body td:nth-child(2),
+  #nw_projection_body td:nth-child(3),
+  .card table thead th:nth-child(2),
+  .card table thead th:nth-child(3) {
+    display: none;
+  }
+
+  /* Investment rows: stack on mobile */
+  .inv-list-header {
+    display: none; /* hide column headers — labels are implied */
+  }
+
+  .inv-list-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .inv-list-row > .form-group:first-child {
+    grid-column: 1 / -1; /* name spans full width */
+  }
+
+  /* Section spacer tighter on mobile */
+  .section-spacer {
+    margin-bottom: 20px;
+  }
+}

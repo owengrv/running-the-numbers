@@ -6,7 +6,7 @@ let invIdCounter = 0;
 
 // ======================== PERSIST FIELD IDS ========================
 const PERSIST_IDS = [
-  'h_price','h_down','h_rate','h_term','h_tax','h_insurance','h_hoa','h_pmi','h_cagr',
+  'h_price','h_down','h_rate','h_term','h_tax','h_insurance','h_hoa','h_pmi','h_cagr','h_homestead',
   'cc_origination','cc_appraisal','cc_title','cc_escrow','cc_inspection','cc_recording','cc_prepaid_days','cc_other',
   'cf_owen','cf_brenna','cf_tax','cf_other','cf_expenses_input'
 ];
@@ -219,7 +219,9 @@ function calcHome() {
     pi = loanAmt / n;
   }
 
-  const taxMo = (price * taxPct / 100) / 12;
+  const homestead = document.getElementById('h_homestead').value === 'yes';
+  const taxableValue = homestead ? price * 0.8 : price;
+  const taxMo = (taxableValue * taxPct / 100) / 12;
   const insMo = insAnnual / 12;
   const pmiMo = downPct < 20 ? (loanAmt * pmiRate / 100) / 12 : 0;
   const total = pi + taxMo + insMo + pmiMo + hoa;
@@ -548,14 +550,14 @@ function renderInvestments() {
   }
 
   list.innerHTML = `
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;padding:0 4px 8px;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);">
+    <div class="inv-list-header">
       <div>Position Name</div>
       <div>Current Value</div>
       <div>Expected CAGR %</div>
       <div></div>
     </div>
   ` + investments.map(inv => `
-    <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:12px;align-items:center;margin-bottom:10px;">
+    <div class="inv-list-row">
       <div class="form-group" style="margin:0;"><input type="text" value="${inv.name}" oninput="updateInvestment(${inv.id},'name',this.value)" placeholder="Position name"></div>
       <div class="form-group" style="margin:0;">
         <div class="input-wrap">
