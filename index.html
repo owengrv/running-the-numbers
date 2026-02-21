@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Running the Numbers — Personal Financial Model for Owen & Brenna">
+<title>Running the Numbers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">// RUNNING THE NUMBERS</div>
+    <div class="header-subtitle">Personal Financial Model &mdash; Owen &amp; Brenna</div>
+  </div>
+  <div class="header-actions">
+    <div class="header-date" id="headerDate"></div>
+    <button class="btn btn-ghost" onclick="exportJSON()" title="Download scenario as JSON">Export</button>
+    <button class="btn btn-ghost" onclick="document.getElementById('importFileInput').click()" title="Load a previously exported JSON file">Import</button>
+    <button class="btn btn-ghost" onclick="copyLink()" title="Copy a shareable link with your current data">Copy Link</button>
+    <input type="file" id="importFileInput" accept=".json" onchange="handleImportFile(event)">
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="home" onclick="switchTab('home')">01 / Home Purchase</div>
+  <div class="tab" data-tab="loans" onclick="switchTab('loans')">02 / Collateralized Loans</div>
+  <div class="tab" data-tab="cashflow" onclick="switchTab('cashflow')">03 / Cash Flow</div>
+  <div class="tab" data-tab="investments" onclick="switchTab('investments')">04 / Investments</div>
+  <div class="tab" data-tab="summary" onclick="switchTab('summary')">05 / Summary</div>
+</div>
+
+<!-- ============================== TAB 1: HOME PURCHASE ============================== -->
+<div class="content">
+<div id="tab-home" class="panel active">
+  <div class="section-spacer">
+    <div class="section-title">Purchase Parameters</div>
+    <div class="form-row" style="margin-bottom:12px;">
+      <div class="form-group">
+        <label>Purchase Price</label>
+        <div class="input-wrap">
+          <span class="input-prefix">$</span>
+          <input class="has-prefix" type="number" id="h_price" value="450000" oninput="calcHome()">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Down Payment %</label>
+        <div class="input-wrap">
+          <input class="has-suffix" type="number" id="h_down" value="20" step="0.5" oninput="calcHome()">
+          <span class="input-suffix">%</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Interest Rate %</label>
+        <div class="input-wrap">
+          <input class="has-suffix" type="number" id="h_rate" value="6.875" step="0.125" oninput="calcHome()">
+          <span class="input-suffix">%</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Loan Term</label>
+        <select id="h_term" onchange="calcHome()">
+          <option value="30">30 Years</option>
+          <option value="20">20 Years</option>
+          <option value="15">15 Years</option>
+          <option value="10">10 Years</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Property Tax %</label>
+        <div class="input-wrap">
+          <input class="has-suffix" type="number" id="h_tax" value="2.1" step="0.05" oninput="calcHome()">
+          <span class="input-suffix">%</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Homeowner's Insurance</label>
+        <div class="input-wrap">
+          <span class="input-prefix">$</span>
+          <input class="has-prefix" type="number" id="h_insurance" value="2400" oninput="calcHome()">
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">annual</div>
+      </div>
+      <div class="form-group">
+        <label>HOA</label>
+        <div class="input-wrap">
+          <span class="input-prefix">$</span>
+          <input class="has-prefix" type="number" id="h_hoa" value="0" oninput="calcHome()">
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">monthly</div>
+      </div>
+      <div class="form-group">
+        <label>PMI Rate %</label>
+        <div class="input-wrap">
+          <input class="has-suffix" type="number" id="h_pmi" value="0.5" step="0.05" oninput="calcHome()">
+          <span class="input-suffix">%</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">applies if &lt;20% down</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-spacer">
+    <div class="section-title">Other Parameters</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Home Value CAGR %</label>
+        <div class="input-wrap">
+          <input class="has-suffix" type="number" id="h_cagr" value="4.0" step="0.25" oninput="calcHome()">
+          <span class="input-suffix">%</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">expected annual appreciation</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-spacer">
+    <div class="section-title">Monthly Payment Breakdown</div>
+    <div class="grid4">
+      <div class="stat-card">
+        <div class="stat-label">Principal + Interest</div>
+        <div class="stat-value" id="h_pi">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Property Tax</div>
+        <div class="stat-value neutral" id="h_taxmo">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Insurance + PMI</div>
+        <div class="stat-value neutral" id="h_insmo">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total PITI + HOA</div>
+        <div class="stat-value" id="h_total" style="font-size:26px;">--</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-spacer">
+    <div class="section-title">Loan Details</div>
+    <div class="grid4">
+      <div class="stat-card">
+        <div class="stat-label">Loan Amount</div>
+        <div class="stat-value neutral" id="h_loan">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Down Payment $</div>
+        <div class="stat-value neutral" id="h_downamt">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Interest Paid</div>
+        <div class="stat-value negative" id="h_totalint">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Cost of Home</div>
+        <div class="stat-value negative" id="h_totalcost">--</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-spacer">
+    <div class="section-title">Estimated Cost to Close</div>
+    <div class="grid2">
+      <div class="card" style="padding:20px 24px;">
+        <div class="card-title">Closing Cost Inputs</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Loan Origination %</label>
+            <div class="input-wrap">
+              <input class="has-suffix" type="number" id="cc_origination" value="1.0" step="0.05" oninput="calcClose()">
+              <span class="input-suffix">%</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Appraisal</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cc_appraisal" value="600" oninput="calcClose()">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Title Insurance</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cc_title" value="1500" oninput="calcClose()">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Escrow / Attorney</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cc_escrow" value="800" oninput="calcClose()">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Home Inspection</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cc_inspection" value="500" oninput="calcClose()">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Recording Fees</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cc_recording" value="150" oninput="calcClose()">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Prepaid Interest (days)</label>
+            <input type="number" id="cc_prepaid_days" value="15" oninput="calcClose()">
+          </div>
+          <div class="form-group">
+            <label>Other Fees</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cc_other" value="0" oninput="calcClose()">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="padding:20px 24px;">
+        <div class="card-title">Closing Cost Breakdown</div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Loan Origination Fee</span>
+          <span class="cf-line-value red" id="cc_s_origination">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Appraisal</span>
+          <span class="cf-line-value red" id="cc_s_appraisal">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Title Insurance</span>
+          <span class="cf-line-value red" id="cc_s_title">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Escrow / Attorney</span>
+          <span class="cf-line-value red" id="cc_s_escrow">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Home Inspection</span>
+          <span class="cf-line-value red" id="cc_s_inspection">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Recording Fees</span>
+          <span class="cf-line-value red" id="cc_s_recording">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Prepaid Interest</span>
+          <span class="cf-line-value red" id="cc_s_prepaid">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Other Fees</span>
+          <span class="cf-line-value red" id="cc_s_other">--</span>
+        </div>
+        <div class="cf-line" style="border-top:1px solid var(--border2);margin-top:4px;padding-top:12px;">
+          <span class="cf-line-label" style="color:var(--text);font-weight:500;">Total Closing Costs</span>
+          <span class="cf-line-value red" id="cc_s_total" style="font-size:18px;">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label" style="color:var(--text);font-weight:500;">Cash to Close (Down + Costs)</span>
+          <span class="cf-line-value" id="cc_s_cashtoclose" style="font-size:18px;color:var(--yellow);">--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-spacer">
+    <div class="section-title">Amortization Schedule <span style="color:var(--text3);font-weight:300">(first 24 months)</span></div>
+    <div class="table-wrap">
+      <div class="amort-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Mo</th>
+              <th>Payment</th>
+              <th>Principal</th>
+              <th>Interest</th>
+              <th>Cumul. Interest</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody id="amortBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== TAB 2: COLLATERALIZED LOANS ============================== -->
+<div id="tab-loans" class="panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+    <div class="section-title" style="margin:0;border:none;">Loan Positions</div>
+    <button class="btn btn-primary" onclick="addLoan()">+ Add Loan</button>
+  </div>
+
+  <div id="loansList"></div>
+
+  <hr class="divider">
+  <div class="section-title">Portfolio Summary</div>
+  <div class="grid4" id="loanSummaryStats">
+    <div class="stat-card">
+      <div class="stat-label">Active Loans</div>
+      <div class="stat-value neutral" id="ls_collateral">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Debt</div>
+      <div class="stat-value negative" id="ls_debt">$0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Monthly Payment Burden</div>
+      <div class="stat-value negative" id="ls_monthly">$0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg. Interest Rate</div>
+      <div class="stat-value neutral" id="ls_avgrate">0.00%</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== TAB 3: CASHFLOW ============================== -->
+<div id="tab-cashflow" class="panel">
+  <div class="grid2">
+    <div>
+      <div class="section-spacer">
+        <div class="section-title">Income</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Owen - Annual Gross</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cf_owen" value="180000" oninput="calcCashflow()">
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">annual</div>
+          </div>
+          <div class="form-group">
+            <label>Brenna - Annual Gross</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cf_brenna" value="96000" oninput="calcCashflow()">
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">annual</div>
+          </div>
+          <div class="form-group">
+            <label>Income Tax Bracket %</label>
+            <div class="input-wrap">
+              <input class="has-suffix" type="number" id="cf_tax" value="22" step="1" oninput="calcCashflow()">
+              <span class="input-suffix">%</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Other Income</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cf_other" value="0" oninput="calcCashflow()">
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">annual</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-spacer">
+        <div class="section-title">Expenses</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Housing (from Tab 1)</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cf_housing" value="0" readonly style="opacity:0.6;cursor:not-allowed;">
+            </div>
+            <div style="font-size:10px;color:var(--accent);margin-top:3px;font-family:var(--mono)">auto-linked · monthly</div>
+          </div>
+          <div class="form-group">
+            <label>Loan Payments (from Tab 2)</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cf_loanpayments" value="0" readonly style="opacity:0.6;cursor:not-allowed;">
+            </div>
+            <div style="font-size:10px;color:var(--accent);margin-top:3px;font-family:var(--mono)">auto-linked · monthly</div>
+          </div>
+          <div class="form-group">
+            <label>Expenses</label>
+            <div class="input-wrap">
+              <span class="input-prefix">$</span>
+              <input class="has-prefix" type="number" id="cf_expenses_input" value="3000" oninput="calcCashflow()">
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">monthly · all other expenses</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Monthly Cash Flow Statement</div>
+      <div class="card" style="padding:24px;">
+        <div class="cf-line">
+          <span class="cf-line-label">Owen Gross Income</span>
+          <span class="cf-line-value green" id="cfs_owen">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label">Brenna Gross Income</span>
+          <span class="cf-line-value green" id="cfs_brenna">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label">Other Income</span>
+          <span class="cf-line-value green" id="cfs_other">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label">Combined Gross</span>
+          <span class="cf-line-value green" id="cfs_gross" style="font-size:15px;">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label">Est. Income Tax</span>
+          <span class="cf-line-value red" id="cfs_taxes">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label" style="font-weight:500;color:var(--text);">Net Take-Home</span>
+          <span class="cf-line-value" id="cfs_net" style="font-size:16px;color:var(--accent);">--</span>
+        </div>
+        <div style="margin:12px 0 4px;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);">Expenses</div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Housing (PITI + HOA)</span>
+          <span class="cf-line-value red" id="cfs_housing">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Collateralized Loan Payments</span>
+          <span class="cf-line-value red" id="cfs_loans">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label indent">Other Expenses</span>
+          <span class="cf-line-value red" id="cfs_other_exp">--</span>
+        </div>
+        <div class="cf-line">
+          <span class="cf-line-label" style="font-weight:500;color:var(--text);">Total Expenses</span>
+          <span class="cf-line-value red" id="cfs_expenses" style="font-size:15px;">--</span>
+        </div>
+        <div class="cf-line" style="border-top:2px solid var(--border2);padding-top:12px;margin-top:4px;">
+          <span class="cf-line-label" style="font-size:14px;color:var(--text);font-weight:500;">Monthly Surplus / Deficit</span>
+          <span class="cf-line-value" id="cfs_surplus" style="font-size:22px;">--</span>
+        </div>
+        <div style="margin-top:12px;">
+          <div class="stat-label">Expense Ratio (% of net)</div>
+          <div class="cf-bar-wrap">
+            <div class="cf-bar" id="cf_bar" style="width:0%;background:var(--accent);"></div>
+          </div>
+          <div style="font-family:var(--mono);font-size:12px;color:var(--text2);margin-top:4px;" id="cf_ratio_text">0%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== TAB 4: INVESTMENTS ============================== -->
+<div id="tab-investments" class="panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+    <div class="section-title" style="margin:0;border:none;">Investment Positions</div>
+    <button class="btn btn-primary" onclick="addInvestment()">+ Add Position</button>
+  </div>
+
+  <div id="investmentsList"></div>
+
+  <hr class="divider">
+
+  <div class="grid2" id="invSummaryStats">
+    <div class="stat-card">
+      <div class="stat-label">Total Current Value</div>
+      <div class="stat-value neutral" id="inv_current">$0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Blended CAGR</div>
+      <div class="stat-value neutral" id="inv_cagr">0%</div>
+    </div>
+  </div>
+
+  <input type="hidden" id="inv_monthly" value="0">
+</div>
+
+<!-- ============================== TAB 5: SUMMARY ============================== -->
+<div id="tab-summary" class="panel">
+  <div class="section-title">Executive Summary</div>
+
+  <div class="grid2" style="margin-bottom:28px;">
+    <div class="stat-card">
+      <div class="stat-label">Monthly Surplus / Deficit</div>
+      <div class="stat-value" id="sum_surplus" style="font-size:32px;">--</div>
+      <div class="cf-bar-wrap" style="margin-top:10px;">
+        <div class="cf-bar" id="sum_bar" style="width:0%;background:var(--accent);"></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:5px;" id="sum_bar_label"></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Annual Surplus / Deficit</div>
+      <div class="stat-value" id="sum_annual" style="font-size:32px;">--</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);margin-top:10px;" id="sum_annual_sub"></div>
+    </div>
+  </div>
+
+  <div class="section-title">Net Worth Projection</div>
+  <div style="margin-bottom:20px;font-family:var(--mono);font-size:11px;color:var(--text3);">
+    Includes: home equity (at projected appreciation), investment portfolio growth, monthly surplus compounded at investment CAGR, less outstanding debt.
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th>Horizon</th>
+          <th>Home Value</th>
+          <th>Home Equity</th>
+          <th>Investments</th>
+          <th>Debt</th>
+          <th style="color:var(--accent);">Net Worth</th>
+          <th>Change</th>
+        </tr>
+      </thead>
+      <tbody id="nw_projection_body"></tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- /content -->
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
