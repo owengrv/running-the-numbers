@@ -17,6 +17,17 @@
   --sans: 'IBM Plex Sans', sans-serif;
 }
 
+[data-theme="light"] {
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface2: #e4e7ec;
+  --border: #d1d5db;
+  --border2: #9ca3af;
+  --text: #111418;
+  --text2: #374151;
+  --text3: #6b7280;
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -91,6 +102,13 @@ body {
 
 .tab:hover { color: var(--text2); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-divider {
+  width: 1px;
+  background: var(--border);
+  margin: 8px 4px;
+  align-self: stretch;
+}
 
 /* Content */
 .content {
@@ -493,6 +511,88 @@ td.balance { color: var(--text); }
 /* Hidden file input */
 #importFileInput { display: none; }
 
+/* Auto-linked tab jump links */
+a.auto-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+  transition: opacity 0.15s;
+}
+a.auto-link:hover { opacity: 0.7; }
+
+/* Expense budget rows */
+.expense-item-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+/* Theme toggle button */
+.btn-theme {
+  background: transparent;
+  color: var(--text3);
+  border: 1px solid var(--border2);
+  font-size: 14px;
+  padding: 6px 10px;
+  line-height: 1;
+}
+.btn-theme:hover { color: var(--text); background: var(--surface2); }
+
+/* Collapsible cards */
+.card-collapsible {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.card-collapsible .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.card-collapsible .card-header:hover {
+  background: var(--surface2);
+}
+
+.card-header-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+
+.card-chevron {
+  font-size: 10px;
+  color: var(--text3);
+  transition: transform 0.2s ease;
+  line-height: 1;
+}
+
+.card-collapsible.collapsed .card-chevron {
+  transform: rotate(-90deg);
+}
+
+.card-body {
+  padding: 0 24px 20px;
+  transition: none;
+}
+
+.card-collapsible.collapsed .card-body {
+  display: none;
+}
+
+
 /* Investment list rows (replaces inline styles in app.js) */
 .inv-list-header {
   display: grid;
@@ -511,6 +611,15 @@ td.balance { color: var(--text); }
   grid-template-columns: 2fr 1fr 1fr auto;
   gap: 12px;
   align-items: center;
+  margin-bottom: 10px;
+}
+
+/* Renovation line items */
+.reno-item-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 12px;
+  align-items: end;
   margin-bottom: 10px;
 }
 
@@ -602,14 +711,6 @@ td.balance { color: var(--text); }
     padding: 14px;
   }
 
-  /* Summary net worth table: hide less critical columns */
-  #nw_projection_body td:nth-child(2),
-  #nw_projection_body td:nth-child(3),
-  .card table thead th:nth-child(2),
-  .card table thead th:nth-child(3) {
-    display: none;
-  }
-
   /* Investment rows: stack on mobile */
   .inv-list-header {
     display: none; /* hide column headers — labels are implied */
@@ -627,5 +728,27 @@ td.balance { color: var(--text); }
   /* Section spacer tighter on mobile */
   .section-spacer {
     margin-bottom: 20px;
+  }
+
+  /* Renovation rows: collapse name to full width */
+  .reno-item-row {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+  }
+  .reno-item-row > .form-group:first-child {
+    grid-column: 1 / -1;
+  }
+
+  /* Expense rows: collapse to 2-col grid */
+  .expense-item-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .expense-item-row > .form-group:first-child {
+    grid-column: 1 / -1;
+  }
+  .expense-item-row > button {
+    grid-column: 2;
+    align-self: end;
   }
 }

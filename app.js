@@ -1,14 +1,15 @@
 // ======================== STATE ========================
-let loans = [];
-let investments = [];
-let loanIdCounter = 0;
-let invIdCounter = 0;
+let renoItems = [];
+let expenseItems = [];
+let renoIdCounter = 0;
+let expenseIdCounter = 0;
 
 // ======================== PERSIST FIELD IDS ========================
 const PERSIST_IDS = [
-  'h_price','h_down','h_rate','h_term','h_tax','h_insurance','h_hoa','h_pmi','h_cagr','h_homestead',
+  'h_price','h_down','h_rate','h_term','h_tax','h_insurance','h_hoa','h_pmi','h_homestead',
   'cc_origination','cc_appraisal','cc_title','cc_escrow','cc_inspection','cc_recording','cc_prepaid_days','cc_other',
-  'cf_owen','cf_brenna','cf_tax','cf_other','cf_expenses_input'
+  'cf_gross_input','cf_tax',
+  'reno_contingency'
 ];
 
 const STORAGE_KEY = 'rtn_state';
@@ -20,7 +21,7 @@ function saveState() {
     const el = document.getElementById(id);
     if (el) inputs[id] = el.value;
   });
-  const state = { inputs, loans, investments, loanIdCounter, invIdCounter };
+  const state = { inputs, renoItems, expenseItems, renoIdCounter, expenseIdCounter };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (e) {
@@ -39,10 +40,10 @@ function loadState(state) {
       });
     }
     // Restore dynamic arrays
-    if (Array.isArray(state.loans)) loans = state.loans;
-    if (Array.isArray(state.investments)) investments = state.investments;
-    if (state.loanIdCounter !== undefined) loanIdCounter = state.loanIdCounter;
-    if (state.invIdCounter !== undefined) invIdCounter = state.invIdCounter;
+    if (Array.isArray(state.renoItems)) renoItems = state.renoItems;
+    if (Array.isArray(state.expenseItems)) expenseItems = state.expenseItems;
+    if (state.renoIdCounter !== undefined) renoIdCounter = state.renoIdCounter;
+    if (state.expenseIdCounter !== undefined) expenseIdCounter = state.expenseIdCounter;
     return true;
   } catch (e) {
     return false;
@@ -66,7 +67,7 @@ function getExportState() {
     const el = document.getElementById(id);
     if (el) inputs[id] = el.value;
   });
-  return { inputs, loans, investments, loanIdCounter, invIdCounter };
+  return { inputs, renoItems, expenseItems, renoIdCounter, expenseIdCounter };
 }
 
 function exportJSON() {
@@ -101,12 +102,13 @@ function handleImportFile(event) {
 
 function applyState(state) {
   loadState(state);
-  renderLoans();
-  renderInvestments();
+  renderRenoItems();
+  renderExpenseItems();
   calcHome();
   calcClose();
+  calcExpenses();
   calcCashflow();
-  calcInvestments();
+  calcReno();
   calcSummary();
   saveState();
 }
@@ -148,10 +150,17 @@ function showToast(msg) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
+// ======================== COLLAPSIBLE CARDS ========================
+function toggleCard(id) {
+  const card = document.getElementById(id);
+  if (card) card.classList.toggle('collapsed');
+}
+
 // ======================== TABS ========================
+const VALID_TABS = ['summary', 'home', 'cashflow', 'expenses', 'renovation'];
+
 function switchTab(tab) {
-  const validTabs = ['home', 'loans', 'cashflow', 'investments', 'summary'];
-  if (!validTabs.includes(tab)) tab = 'home';
+  if (!VALID_TABS.includes(tab)) tab = 'summary';
 
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -164,13 +173,14 @@ function switchTab(tab) {
   }
 
   if (tab === 'cashflow') syncCashflowLinks();
+  if (tab === 'expenses') calcExpenses();
+  if (tab === 'renovation') calcReno();
   if (tab === 'summary') calcSummary();
 }
 
 window.addEventListener('hashchange', () => {
   const hash = window.location.hash.slice(1);
-  const validTabs = ['home', 'loans', 'cashflow', 'investments', 'summary'];
-  if (validTabs.includes(hash)) switchTab(hash);
+  if (VALID_TABS.includes(hash)) switchTab(hash);
 });
 
 // ======================== FORMATTING ========================
@@ -188,9 +198,6 @@ function fmtSigned(n) {
 let homeMonthly = 0;
 let homeLoanAmt = 0;
 let homePurchasePrice = 0;
-let homeTotalInterest = 0;
-let homeCAGR = 4.0;
-let homeTerm = 30;
 
 function calcHome() {
   const price = parseFloat(document.getElementById('h_price').value) || 0;
@@ -201,9 +208,6 @@ function calcHome() {
   const insAnnual = parseFloat(document.getElementById('h_insurance').value) || 0;
   const hoa = parseFloat(document.getElementById('h_hoa').value) || 0;
   const pmiRate = parseFloat(document.getElementById('h_pmi').value) || 0;
-  homeCAGR = parseFloat(document.getElementById('h_cagr').value) || 0;
-  homeTerm = term;
-
   const downAmt = price * (downPct / 100);
   const loanAmt = price - downAmt;
   homeLoanAmt = loanAmt;
@@ -230,6 +234,7 @@ function calcHome() {
   document.getElementById('h_pi').textContent = fmt(pi);
   document.getElementById('h_taxmo').textContent = fmt(taxMo);
   document.getElementById('h_insmo').textContent = fmt(insMo + pmiMo);
+  document.getElementById('h_hoamo').textContent = fmt(hoa);
   document.getElementById('h_total').textContent = fmt(total);
   document.getElementById('h_loan').textContent = fmt(loanAmt);
   document.getElementById('h_downamt').textContent = fmt(downAmt);
@@ -237,9 +242,9 @@ function calcHome() {
   // Total interest
   const totalPaid = pi * n;
   const totalInterest = totalPaid - loanAmt;
-  homeTotalInterest = totalInterest;
   document.getElementById('h_totalint').textContent = fmt(totalInterest);
   document.getElementById('h_totalcost').textContent = fmt(price + totalInterest + (taxMo * n) + (insMo * n));
+  document.getElementById('h_totalcost_label').textContent = `Total Cost over ${term} Years`;
 
   // Amortization schedule (first 24 months)
   let bal = loanAmt;
@@ -298,164 +303,6 @@ function calcClose() {
   document.getElementById('cc_s_total').textContent = fmt(total);
   document.getElementById('cc_s_cashtoclose').textContent = fmt(cashToClose);
 
-  saveState();
-}
-
-// ======================== LOANS ========================
-function addLoan() {
-  const id = ++loanIdCounter;
-  loans.push({ id, name: 'New Loan', loanAmt: 20000, term: 12, rate: 8, paymentType: 'interest_only', makePayments: true });
-  renderLoans();
-}
-
-function removeLoan(id) {
-  loans = loans.filter(l => l.id !== id);
-  renderLoans();
-}
-
-function updateLoan(id, field, value) {
-  const loan = loans.find(l => l.id === id);
-  if (!loan) return;
-  if (field === 'makePayments') {
-    loan.makePayments = value === 'yes';
-    renderLoanCard(loan);
-  } else if (['loanAmt','term','rate'].includes(field)) {
-    loan[field] = parseFloat(value) || 0;
-  } else {
-    loan[field] = value;
-  }
-  updateLoanDisplay(id);
-  calcLoanSummary();
-  syncCashflowLinks();
-}
-
-function calcLoanMonthly(loan) {
-  if (!loan.makePayments) return 0;
-  if (loan.paymentType === 'interest_only') {
-    return loan.loanAmt * (loan.rate / 100 / 12);
-  } else {
-    const r = loan.rate / 100 / 12;
-    const n = loan.term;
-    if (r === 0) return loan.loanAmt / n;
-    return loan.loanAmt * (r * Math.pow(1+r,n)) / (Math.pow(1+r,n)-1);
-  }
-}
-
-function updateLoanDisplay(id) {
-  const loan = loans.find(l => l.id === id);
-  if (!loan) return;
-  const monthly = calcLoanMonthly(loan);
-  const moEl = document.getElementById('loan_monthly_' + id);
-  if (moEl) {
-    moEl.textContent = loan.makePayments ? fmt(monthly) : 'Deferred';
-    moEl.style.color = loan.makePayments ? 'var(--accent3)' : 'var(--text3)';
-  }
-  const intEl = document.getElementById('loan_totalint_' + id);
-  if (intEl) {
-    intEl.textContent = loan.makePayments ? fmt(monthly * loan.term) : 'Deferred';
-  }
-}
-
-function renderLoanCard(loan) {
-  const card = document.getElementById('loan_card_' + loan.id);
-  if (!card) return;
-  const ptEl = card.querySelector('.loan-paytype-toggle');
-  if (ptEl) {
-    ptEl.innerHTML = loan.makePayments
-      ? `<label>Payment Type</label>
-         <select onchange="updateLoan(${loan.id},'paymentType',this.value)">
-           <option value="interest_only" ${loan.paymentType==='interest_only'?'selected':''}>Interest Only</option>
-           <option value="principal_interest" ${loan.paymentType==='principal_interest'?'selected':''}>Principal + Interest</option>
-         </select>`
-      : `<label>Payment Type</label>
-         <input value="N/A (deferred)" disabled style="opacity:0.4;cursor:not-allowed;">`;
-  }
-}
-
-function renderLoans() {
-  const list = document.getElementById('loansList');
-  if (loans.length === 0) {
-    list.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3);font-family:var(--mono);font-size:13px;">No loan positions. Click "+ Add Loan" to model a collateralized loan.</div>`;
-    calcLoanSummary();
-    return;
-  }
-
-  list.innerHTML = loans.map(loan => `
-    <div class="loan-card" id="loan_card_${loan.id}">
-      <div class="loan-header">
-        <div style="display:flex;align-items:center;gap:12px;">
-          <span style="font-family:var(--mono);font-size:13px;color:var(--text2);" id="loan_name_display_${loan.id}">${loan.name}</span>
-        </div>
-        <button class="btn btn-danger" onclick="removeLoan(${loan.id})">Remove</button>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Loan Name</label>
-          <input type="text" value="${loan.name}" oninput="updateLoan(${loan.id},'name',this.value);document.getElementById('loan_name_display_${loan.id}').textContent=this.value;" placeholder="e.g. Bitcoin Backed Loan">
-        </div>
-        <div class="form-group">
-          <label>Loan Amount</label>
-          <div class="input-wrap">
-            <span class="input-prefix">$</span>
-            <input class="has-prefix" type="number" value="${loan.loanAmt}" oninput="updateLoan(${loan.id},'loanAmt',this.value)">
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Term (months)</label>
-          <input type="number" value="${loan.term}" oninput="updateLoan(${loan.id},'term',this.value)">
-        </div>
-        <div class="form-group">
-          <label>Interest Rate %</label>
-          <div class="input-wrap">
-            <input class="has-suffix" type="number" step="0.25" value="${loan.rate}" oninput="updateLoan(${loan.id},'rate',this.value)">
-            <span class="input-suffix">%</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Monthly Payments?</label>
-          <select onchange="updateLoan(${loan.id},'makePayments',this.value)">
-            <option value="yes" ${loan.makePayments?'selected':''}>Yes</option>
-            <option value="no" ${!loan.makePayments?'selected':''}>No (deferred)</option>
-          </select>
-        </div>
-        <div class="form-group loan-paytype-toggle">
-          ${loan.makePayments
-            ? `<label>Payment Type</label>
-               <select onchange="updateLoan(${loan.id},'paymentType',this.value)">
-                 <option value="interest_only" ${loan.paymentType==='interest_only'?'selected':''}>Interest Only</option>
-                 <option value="principal_interest" ${loan.paymentType==='principal_interest'?'selected':''}>Principal + Interest</option>
-               </select>`
-            : `<label>Payment Type</label>
-               <input value="N/A (deferred)" disabled style="opacity:0.4;cursor:not-allowed;">`}
-        </div>
-      </div>
-      <div style="display:flex;gap:24px;margin-top:8px;">
-        <div>
-          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;">Monthly Payment</div>
-          <div id="loan_monthly_${loan.id}" style="font-family:var(--mono);font-size:18px;font-weight:600;color:${loan.makePayments?'var(--accent3)':'var(--text3)'};">${loan.makePayments ? fmt(calcLoanMonthly(loan)) : 'Deferred'}</div>
-        </div>
-        <div>
-          <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.1em;">Total Interest Cost</div>
-          <div id="loan_totalint_${loan.id}" style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--text2);">${fmt(calcLoanMonthly(loan) * loan.term)}</div>
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  calcLoanSummary();
-}
-
-function calcLoanSummary() {
-  const totalDebt = loans.reduce((s,l) => s + l.loanAmt, 0);
-  const totalMonthly = loans.reduce((s,l) => s + calcLoanMonthly(l), 0);
-  const avgRate = loans.length > 0 ? loans.reduce((s,l) => s + l.rate, 0) / loans.length : 0;
-
-  document.getElementById('ls_collateral').textContent = loans.length;
-  document.getElementById('ls_debt').textContent = fmt(totalDebt);
-  document.getElementById('ls_monthly').textContent = fmt(totalMonthly);
-  document.getElementById('ls_avgrate').textContent = avgRate.toFixed(2) + '%';
-
-  syncCashflowLinks();
   calcSummary();
   saveState();
 }
@@ -463,8 +310,7 @@ function calcLoanSummary() {
 // ======================== CASHFLOW ========================
 function syncCashflowLinks() {
   document.getElementById('cf_housing').value = homeMonthly.toFixed(2);
-  const totalLoanPay = loans.reduce((s,l) => s + calcLoanMonthly(l), 0);
-  document.getElementById('cf_loanpayments').value = totalLoanPay.toFixed(2);
+  // cf_expenses_input is kept in sync by calcExpenses()
   calcCashflow();
 }
 
@@ -472,37 +318,26 @@ let cfNetMonthly = 0;
 let cfTotalExpenses = 0;
 
 function calcCashflow() {
-  const owenAnnual = parseFloat(document.getElementById('cf_owen').value) || 0;
-  const brennaAnnual = parseFloat(document.getElementById('cf_brenna').value) || 0;
-  const otherAnnual = parseFloat(document.getElementById('cf_other').value) || 0;
+  const grossAnnual = parseFloat(document.getElementById('cf_gross_input').value) || 0;
   const taxBracket = parseFloat(document.getElementById('cf_tax').value) || 0;
 
-  const owen = owenAnnual / 12;
-  const brenna = brennaAnnual / 12;
-  const other = otherAnnual / 12;
-
-  const gross = owen + brenna + other;
+  const gross = grossAnnual / 12;
   const taxes = gross * (taxBracket / 100);
   const net = gross - taxes;
   cfNetMonthly = net;
 
   const housing = parseFloat(document.getElementById('cf_housing').value) || 0;
-  const loans_ = parseFloat(document.getElementById('cf_loanpayments').value) || 0;
   const other_exp = parseFloat(document.getElementById('cf_expenses_input').value) || 0;
 
-  const expenses = housing + loans_ + other_exp;
+  const expenses = housing + other_exp;
   cfTotalExpenses = expenses;
   const surplus = net - expenses;
 
-  document.getElementById('cfs_owen').textContent = fmt(owen);
-  document.getElementById('cfs_brenna').textContent = fmt(brenna);
-  document.getElementById('cfs_other').textContent = fmt(other);
   document.getElementById('cfs_gross').textContent = fmt(gross);
   document.getElementById('cfs_taxes').textContent = '-' + fmt(taxes);
   document.getElementById('cfs_net').textContent = fmt(net);
 
   document.getElementById('cfs_housing').textContent = '-' + fmt(housing);
-  document.getElementById('cfs_loans').textContent = '-' + fmt(loans_);
   document.getElementById('cfs_other_exp').textContent = '-' + fmt(other_exp);
   document.getElementById('cfs_expenses').textContent = '-' + fmt(expenses);
 
@@ -520,187 +355,252 @@ function calcCashflow() {
   saveState();
 }
 
-// ======================== INVESTMENTS ========================
-function addInvestment() {
-  const id = ++invIdCounter;
-  investments.push({ id, name: 'New Position', value: 10000, cagr: 15 });
-  renderInvestments();
+// ======================== SUMMARY ========================
+function calcSummary() {
+  // Home section
+  const cashToCloseEl = document.getElementById('cc_s_cashtoclose');
+  const cashToClose = cashToCloseEl ? (parseFloat(cashToCloseEl.textContent.replace(/[$,]/g, '')) || 0) : 0;
+  document.getElementById('sum_cash_to_close').textContent = cashToClose > 0 ? fmt(cashToClose) : '--';
+
+  const renoTotalEl = document.getElementById('reno_total');
+  const renoTotal = renoTotalEl ? (parseFloat(renoTotalEl.textContent.replace(/[$,]/g, '')) || 0) : 0;
+  document.getElementById('sum_reno_budget').textContent = fmt(renoTotal);
+
+  const oop = cashToClose + renoTotal;
+  document.getElementById('sum_cash_oop').textContent = oop > 0 ? fmt(oop) : '--';
+
+  // Cash flow section
+  const grossAnnual = parseFloat(document.getElementById('cf_gross_input').value) || 0;
+  const taxBracket = parseFloat(document.getElementById('cf_tax').value) || 0;
+  const gross = grossAnnual / 12;
+  const taxes = gross * (taxBracket / 100);
+  const net = gross - taxes;
+  const housing = parseFloat(document.getElementById('cf_housing').value) || 0;
+  const otherExp = parseFloat(document.getElementById('cf_expenses_input').value) || 0;
+  const expenses = housing + otherExp;
+  const surplus = net - expenses;
+
+  document.getElementById('sum_cfs_gross').textContent = fmt(gross);
+  document.getElementById('sum_cfs_taxes').textContent = '-' + fmt(taxes);
+  document.getElementById('sum_cfs_net').textContent = fmt(net);
+  document.getElementById('sum_cfs_housing').textContent = '-' + fmt(housing);
+  document.getElementById('sum_cfs_other_exp').textContent = '-' + fmt(otherExp);
+  document.getElementById('sum_cfs_expenses').textContent = '-' + fmt(expenses);
+
+  const surplusEl = document.getElementById('sum_surplus');
+  surplusEl.textContent = (surplus >= 0 ? '+' : '-') + fmt(Math.abs(surplus));
+  surplusEl.className = 'cf-line-value ' + (surplus >= 0 ? 'green' : 'red');
+
+  const ratio = net > 0 ? (expenses / net * 100) : 0;
+  const barColor = ratio < 70 ? 'var(--green)' : ratio < 90 ? 'var(--yellow)' : 'var(--red)';
+  document.getElementById('sum_bar').style.width = Math.min(ratio, 100) + '%';
+  document.getElementById('sum_bar').style.background = barColor;
+  document.getElementById('sum_bar_label').textContent = ratio.toFixed(1) + '% of net income consumed by expenses';
 }
 
-function removeInvestment(id) {
-  investments = investments.filter(i => i.id !== id);
-  renderInvestments();
-  calcInvestments();
+// ======================== EXPENSE BUDGET ========================
+const EXPENSE_TYPES = ['Housing', 'Food', 'Transport', 'Utilities', 'Health', 'Insurance', 'Entertainment', 'Personal', 'Savings', 'Other'];
+const EXPENSE_FREQS = [
+  { value: 'monthly', label: 'Monthly', divisor: 1 },
+  { value: 'quarterly', label: 'Quarterly', divisor: 3 },
+  { value: 'annually', label: 'Annually', divisor: 12 },
+];
+
+function expenseToMonthly(item) {
+  const freq = EXPENSE_FREQS.find(f => f.value === item.frequency) || EXPENSE_FREQS[0];
+  return (item.amount || 0) / freq.divisor;
 }
 
-function updateInvestment(id, field, val) {
-  const inv = investments.find(i => i.id === id);
-  if (!inv) return;
-  if (field === 'name') inv.name = val;
-  else inv[field] = parseFloat(val) || 0;
-  calcInvestments();
+function addExpenseItem() {
+  const id = ++expenseIdCounter;
+  expenseItems.push({ id, name: 'New Expense', frequency: 'monthly', amount: 0, type: 'Other' });
+  renderExpenseItems();
 }
 
-function renderInvestments() {
-  const list = document.getElementById('investmentsList');
-  if (investments.length === 0) {
-    list.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3);font-family:var(--mono);font-size:13px;">No investment positions. Click "+ Add Position" to start modeling.</div>`;
-    calcInvestments();
+function removeExpenseItem(id) {
+  expenseItems = expenseItems.filter(e => e.id !== id);
+  renderExpenseItems();
+  calcExpenses();
+}
+
+function updateExpenseItem(id, field, value) {
+  const item = expenseItems.find(e => e.id === id);
+  if (!item) return;
+  if (field === 'name') item.name = value;
+  else if (field === 'amount') item.amount = parseFloat(value) || 0;
+  else item[field] = value;
+  calcExpenses();
+}
+
+function renderExpenseItems() {
+  const list = document.getElementById('expenseItemsList');
+  if (!list) return;
+  if (expenseItems.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3);font-family:var(--mono);font-size:13px;">No expenses. Click "+ Add Expense" to start building your budget.</div>`;
+    calcExpenses();
+    return;
+  }
+
+  const freqOptions = EXPENSE_FREQS.map(f => `<option value="${f.value}">${f.label}</option>`).join('');
+  const typeOptions = EXPENSE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+
+  list.innerHTML = `
+    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:12px;padding:0 4px 8px;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);">
+      <div>Expense Name</div>
+      <div>Amount</div>
+      <div>Frequency</div>
+      <div>Type</div>
+      <div></div>
+    </div>
+  ` + expenseItems.map(item => {
+    const monthly = expenseToMonthly(item);
+    const freqOpts = EXPENSE_FREQS.map(f => `<option value="${f.value}" ${item.frequency === f.value ? 'selected' : ''}>${f.label}</option>`).join('');
+    const typeOpts = EXPENSE_TYPES.map(t => `<option value="${t}" ${item.type === t ? 'selected' : ''}>${t}</option>`).join('');
+    return `
+    <div class="expense-item-row">
+      <div class="form-group" style="margin:0;">
+        <input type="text" value="${item.name}" oninput="updateExpenseItem(${item.id},'name',this.value)" placeholder="e.g. Groceries">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <div class="input-wrap">
+          <span class="input-prefix">$</span>
+          <input class="has-prefix" type="number" value="${item.amount || ''}" oninput="updateExpenseItem(${item.id},'amount',this.value)" placeholder="0">
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">${fmt(monthly)}/mo</div>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <select onchange="updateExpenseItem(${item.id},'frequency',this.value)">${freqOpts}</select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <select onchange="updateExpenseItem(${item.id},'type',this.value)">${typeOpts}</select>
+      </div>
+      <button class="btn btn-danger" onclick="removeExpenseItem(${item.id})">&#x2715;</button>
+    </div>`;
+  }).join('');
+
+  calcExpenses();
+}
+
+function calcExpenses() {
+  const monthlyTotal = expenseItems.reduce((s, e) => s + expenseToMonthly(e), 0);
+  const annualTotal = monthlyTotal * 12;
+
+  // Push to cashflow
+  const expEl = document.getElementById('cf_expenses_input');
+  if (expEl) expEl.value = monthlyTotal.toFixed(2);
+
+  const monthlyEl = document.getElementById('exp_monthly_total');
+  const annualEl = document.getElementById('exp_annual_total');
+  const countEl = document.getElementById('exp_count');
+
+  if (monthlyEl) monthlyEl.textContent = fmt(monthlyTotal);
+  if (annualEl) annualEl.textContent = fmt(annualTotal);
+  if (countEl) countEl.textContent = expenseItems.length;
+
+  calcCashflow();
+  saveState();
+}
+
+// ======================== THEME ========================
+function toggleTheme() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const newTheme = isLight ? 'dark' : 'light';
+  applyTheme(newTheme);
+  try { localStorage.setItem('rtn_theme', newTheme); } catch(e) {}
+}
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+    document.getElementById('themeToggleBtn').textContent = '☀';
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    document.getElementById('themeToggleBtn').textContent = '☽';
+  }
+}
+
+// ======================== RENOVATION ========================
+function addRenoItem() {
+  const id = ++renoIdCounter;
+  renoItems.push({ id, label: 'New Item', amount: 0 });
+  renderRenoItems();
+}
+
+function removeRenoItem(id) {
+  renoItems = renoItems.filter(r => r.id !== id);
+  renderRenoItems();
+  calcReno();
+}
+
+function updateRenoItem(id, field, value) {
+  const item = renoItems.find(r => r.id === id);
+  if (!item) return;
+  if (field === 'label') item.label = value;
+  else item.amount = parseFloat(value) || 0;
+  calcReno();
+}
+
+function renderRenoItems() {
+  const list = document.getElementById('renoItemsList');
+  if (!list) return;
+  if (renoItems.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text3);font-family:var(--mono);font-size:13px;">No line items. Click "+ Add Item" to start building your renovation budget.</div>`;
+    calcReno();
     return;
   }
 
   list.innerHTML = `
-    <div class="inv-list-header">
-      <div>Position Name</div>
-      <div>Current Value</div>
-      <div>Expected CAGR %</div>
+    <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:12px;padding:0 4px 8px;font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);">
+      <div>Item / Scope</div>
+      <div>Estimated Cost</div>
       <div></div>
     </div>
-  ` + investments.map(inv => `
-    <div class="inv-list-row">
-      <div class="form-group" style="margin:0;"><input type="text" value="${inv.name}" oninput="updateInvestment(${inv.id},'name',this.value)" placeholder="Position name"></div>
+  ` + renoItems.map(item => `
+    <div class="reno-item-row">
+      <div class="form-group" style="margin:0;">
+        <input type="text" value="${item.label}" oninput="updateRenoItem(${item.id},'label',this.value)" placeholder="e.g. Kitchen Remodel">
+      </div>
       <div class="form-group" style="margin:0;">
         <div class="input-wrap">
           <span class="input-prefix">$</span>
-          <input class="has-prefix" type="number" value="${inv.value}" oninput="updateInvestment(${inv.id},'value',this.value)">
+          <input class="has-prefix" type="number" value="${item.amount || ''}" oninput="updateRenoItem(${item.id},'amount',this.value)" placeholder="0">
         </div>
       </div>
-      <div class="form-group" style="margin:0;">
-        <div class="input-wrap">
-          <input class="has-suffix" type="number" step="0.5" value="${inv.cagr}" oninput="updateInvestment(${inv.id},'cagr',this.value)">
-          <span class="input-suffix">%</span>
-        </div>
-      </div>
-      <button class="btn btn-danger" onclick="removeInvestment(${inv.id})">&#x2715;</button>
+      <button class="btn btn-danger" onclick="removeRenoItem(${item.id})">&#x2715;</button>
     </div>
   `).join('');
 
-  calcInvestments();
+  calcReno();
 }
 
-let invCurrentTotal = 0;
-let invProjectedTotal = 0;
-let invBlendedCAGR = 0;
+function calcReno() {
+  const subtotal = renoItems.reduce((s, r) => s + (r.amount || 0), 0);
+  const contingencyPct = parseFloat(document.getElementById('reno_contingency')?.value) || 0;
+  const contingencyAmt = subtotal * (contingencyPct / 100);
+  const total = subtotal + contingencyAmt;
 
-function calcInvestments() {
-  const totalCurrent = investments.reduce((s,i) => s + i.value, 0);
-  invCurrentTotal = totalCurrent;
+  const subtotalEl = document.getElementById('reno_subtotal');
+  const contingencyAmtEl = document.getElementById('reno_contingency_amt');
+  const totalEl = document.getElementById('reno_total');
+  const countEl = document.getElementById('reno_count');
 
-  const blendedRate = totalCurrent > 0
-    ? investments.reduce((s,i) => s + (i.cagr * (i.value / totalCurrent)), 0)
-    : 0;
-
-  invBlendedCAGR = blendedRate;
-  invProjectedTotal = totalCurrent;
-
-  document.getElementById('inv_current').textContent = fmt(totalCurrent);
-  document.getElementById('inv_cagr').textContent = blendedRate.toFixed(2) + '%';
+  if (subtotalEl) subtotalEl.textContent = fmt(subtotal);
+  if (contingencyAmtEl) contingencyAmtEl.textContent = fmt(contingencyAmt);
+  if (totalEl) totalEl.textContent = fmt(total);
+  if (countEl) countEl.textContent = renoItems.length;
 
   calcSummary();
   saveState();
 }
 
-// ======================== SUMMARY ========================
-function calcSummary() {
-  const surplus = cfNetMonthly - cfTotalExpenses;
-  const annualSurplus = surplus * 12;
-
-  const surplusEl = document.getElementById('sum_surplus');
-  surplusEl.textContent = (surplus >= 0 ? '+' : '') + fmt(Math.abs(surplus));
-  surplusEl.className = 'stat-value ' + (surplus >= 0 ? '' : 'negative');
-  if (surplus < 0) surplusEl.textContent = '-' + fmt(Math.abs(surplus));
-
-  const annualEl = document.getElementById('sum_annual');
-  annualEl.textContent = (annualSurplus >= 0 ? '+' : '-') + fmt(Math.abs(annualSurplus));
-  annualEl.className = 'stat-value ' + (annualSurplus >= 0 ? '' : 'negative');
-
-  const ratio = cfNetMonthly > 0 ? (cfTotalExpenses / cfNetMonthly * 100) : 0;
-  const barColor = ratio < 70 ? 'var(--green)' : ratio < 90 ? 'var(--yellow)' : 'var(--red)';
-  document.getElementById('sum_bar').style.width = Math.min(ratio, 100) + '%';
-  document.getElementById('sum_bar').style.background = barColor;
-  document.getElementById('sum_bar_label').textContent = ratio.toFixed(1) + '% of net income consumed by expenses';
-  document.getElementById('sum_annual_sub').textContent = surplus >= 0
-    ? fmt(annualSurplus) + ' available to invest or save per year'
-    : fmt(Math.abs(annualSurplus)) + ' annual shortfall';
-
-  // Net worth projection
-  const totalLoanDebt = loans.reduce((s,l) => s + l.loanAmt, 0);
-  const monthlyRate = homeLoanAmt > 0
-    ? (parseFloat(document.getElementById('h_rate').value) || 0) / 100 / 12
-    : 0;
-  const termMonths = homeTerm * 12;
-  const pi = homeMonthly > 0 && homeLoanAmt > 0
-    ? homeLoanAmt * (monthlyRate * Math.pow(1+monthlyRate, termMonths)) / (Math.pow(1+monthlyRate, termMonths) - 1)
-    : 0;
-
-  function mortgageBalanceAt(years) {
-    if (homeLoanAmt === 0 || monthlyRate === 0) return homeLoanAmt;
-    const n = Math.min(years * 12, termMonths);
-    return homeLoanAmt * (Math.pow(1+monthlyRate, termMonths) - Math.pow(1+monthlyRate, n))
-         / (Math.pow(1+monthlyRate, termMonths) - 1);
-  }
-
-  const blendedInvRate = invBlendedCAGR / 100;
-  const invMonthlyRate = blendedInvRate / 12;
-
-  function investmentsAt(years) {
-    const months = years * 12;
-    const portfolioGrowth = invCurrentTotal * Math.pow(1 + blendedInvRate, years);
-    const monthlyContrib = parseFloat(document.getElementById('inv_monthly').value) || 0;
-    let contribFV = 0;
-    if (invMonthlyRate > 0) {
-      contribFV = monthlyContrib * (Math.pow(1+invMonthlyRate, months) - 1) / invMonthlyRate;
-    } else {
-      contribFV = monthlyContrib * months;
-    }
-    return portfolioGrowth + contribFV;
-  }
-
-  const horizons = [
-    { label: 'Today', years: 0 },
-    { label: '5 Years', years: 5 },
-    { label: '10 Years', years: 10 },
-    { label: '15 Years', years: 15 },
-    { label: '20 Years', years: 20 },
-  ];
-
-  let prevNW = null;
-  const tbody = document.getElementById('nw_projection_body');
-  tbody.innerHTML = '';
-
-  horizons.forEach(h => {
-    const homeValue = homePurchasePrice > 0
-      ? homePurchasePrice * Math.pow(1 + homeCAGR / 100, h.years)
-      : 0;
-    const mortgageBal = mortgageBalanceAt(h.years);
-    const equity = homeValue - mortgageBal;
-    const invValue = investmentsAt(h.years);
-    const debt = h.years === 0 ? totalLoanDebt : Math.max(totalLoanDebt - 0, 0);
-    const netWorth = equity + invValue - debt;
-
-    const change = prevNW !== null ? netWorth - prevNW : null;
-    const changeText = change !== null
-      ? `<span style="color:${change >= 0 ? 'var(--green)' : 'var(--red)'};">${change >= 0 ? '+' : ''}${fmt(change)}</span>`
-      : '<span style="color:var(--text3);">—</span>';
-
-    const nwColor = netWorth >= 0 ? 'var(--accent)' : 'var(--red)';
-
-    tbody.innerHTML += `<tr>
-      <td style="color:var(--text);font-weight:500;">${h.label}</td>
-      <td>${homePurchasePrice > 0 ? fmt(homeValue) : '--'}</td>
-      <td style="color:var(--accent2);">${homePurchasePrice > 0 ? fmt(equity) : '--'}</td>
-      <td style="color:var(--accent2);">${fmt(invValue)}</td>
-      <td style="color:var(--red);">${debt > 0 ? '-' + fmt(debt) : '$0'}</td>
-      <td style="color:${nwColor};font-weight:600;font-size:14px;">${fmt(netWorth)}</td>
-      <td>${changeText}</td>
-    </tr>`;
-
-    prevNW = netWorth;
-  });
-}
-
 // ======================== INIT ========================
 document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-US', {weekday:'short',year:'numeric',month:'short',day:'numeric'});
+
+// Apply saved theme before anything renders
+try {
+  const savedTheme = localStorage.getItem('rtn_theme');
+  if (savedTheme) applyTheme(savedTheme);
+} catch(e) {}
 
 // Priority: URL state > localStorage > defaults
 const loadedFromHash = loadFromHash();
@@ -709,20 +609,20 @@ if (!loadedFromHash) {
 }
 
 // Render dynamic lists before first calc pass
-renderLoans();
-renderInvestments();
+renderRenoItems();
+renderExpenseItems();
 
 // Determine starting tab
 const initialHash = window.location.hash.slice(1);
-const validTabs = ['home', 'loans', 'cashflow', 'investments', 'summary'];
-const startTab = validTabs.includes(initialHash) && !initialHash.startsWith('state=') ? initialHash : 'home';
+const startTab = VALID_TABS.includes(initialHash) && !initialHash.startsWith('state=') ? initialHash : 'summary';
 
 // Run all calcs
 calcHome();
 calcClose();
+calcExpenses();
 calcCashflow();
-calcInvestments();
+calcReno();
 calcSummary();
 
 // Activate correct tab (after calcs so linked fields are populated)
-if (startTab !== 'home') switchTab(startTab);
+if (startTab !== 'summary') switchTab(startTab);
