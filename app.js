@@ -466,7 +466,6 @@ function renderExpenseItems() {
           <span class="input-prefix">$</span>
           <input class="has-prefix" type="number" value="${item.amount || ''}" oninput="updateExpenseItem(${item.id},'amount',this.value)" placeholder="0">
         </div>
-        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">${fmt(monthly)}/mo</div>
       </div>
       <div class="form-group" style="margin:0;">
         <select onchange="updateExpenseItem(${item.id},'frequency',this.value)">${freqOpts}</select>
@@ -596,16 +595,26 @@ function calcReno() {
 // ======================== INIT ========================
 document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-US', {weekday:'short',year:'numeric',month:'short',day:'numeric'});
 
-// Apply saved theme before anything renders
+// Apply saved theme before anything renders (default: light)
 try {
-  const savedTheme = localStorage.getItem('rtn_theme');
-  if (savedTheme) applyTheme(savedTheme);
-} catch(e) {}
+  const savedTheme = localStorage.getItem('rtn_theme') || 'light';
+  applyTheme(savedTheme);
+} catch(e) { applyTheme('light'); }
 
 // Priority: URL state > localStorage > defaults
 const loadedFromHash = loadFromHash();
 if (!loadedFromHash) {
   loadFromStorage();
+}
+
+// Seed default items if none loaded
+if (renoItems.length === 0) {
+  renoIdCounter = 1;
+  renoItems = [{ id: 1, label: 'my total reno budget', amount: 200000 }];
+}
+if (expenseItems.length === 0) {
+  expenseIdCounter = 1;
+  expenseItems = [{ id: 1, name: 'my total expenses', amount: 8000, frequency: 'monthly', type: 'Other' }];
 }
 
 // Render dynamic lists before first calc pass
